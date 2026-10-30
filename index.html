@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preferred Vendor Directory</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Updated Google Apps Script Web App URL and Sheet Link
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxcNjyXyOsVPfSjI7STP8WO5xSd6OX6eIwD1Dh66cCAXJQEv-qFrRyReJ5TmK9jofvQ/exec";
+    const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1lPW-dHJ7Okj4m-UIUlg3qZbXBCnW3w6ITXs8Cp3R3q8/edit?gid=0#gid=0";
+
+    const CATEGORIES = [
+      "All", "Mortgage", "Attorney/Legal", "Home Inspection", "Title & Closing",
+      "Insurance", "General Contractor", "HVAC & Plumbing", "Roofing/Electrical",
+      "Staging & Media", "Moving & Cleaning"
+    ];
+
+    function App() {
+      const [vendors, setVendors] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [searchQuery, setSearchQuery] = useState("");
+      const [selectedCategory, setSelectedCategory] = useState("All");
+      const [statusMessage, setStatusMessage] = useState("");
+
+      const [formData, setFormData] = useState({
+        name: "", category: "Mortgage", contact: "", phone: "",
+        email: "", website: "", status: "Preferred", rating: "5", notes: ""
+      });
+
+      // Fetch vendors from Google Sheet
+      const fetchVendors = async () => {
+        setLoading(true);
+        setStatusMessage("Syncing with Google Sheet...");
+        try {
+          const response = await fetch(GOOGLE_SCRIPT_URL);
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setVendors(data);
+            setStatusMessage("Data synced successfully!");
+          } else {
+            setStatusMessage("Failed to parse sheet data.");
+          }
+        } catch (err) {
+          console.error("Fetch error:", err);
+          setStatusMessage("Sync failed. Check Web App permissions.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchVendors();
+      }, []);
+
+      // Add vendor to Google Sheet
+      const handleAddVendor = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setStatusMessage("Saving new vendor...");
+
+        try {
+          await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "add", ...formData })
+          });
+
+          setStatusMessage("Vendor submitted! Updating list...");
+          setFormData({
+            name: "", category: "Mortgage", contact: "", phone: "",
+            email: "", website: "", status: "Preferred", rating: "5", notes: ""
+          });
+
+          setTimeout(fetchVendors, 1500);
+        } catch (err) {
+          console.error("Submit error:", err);
+          setStatusMessage("Error communicating with Google Sheet.");
+          setLoading(false);
+        }
+      };
+
+      const filteredVendors = vendors.filter(v => {
+        const matchesCat = selectedCategory === "All" || v.Category === selectedCategory;
+        const matchesSearch = !searchQuery ||
+          (v.Name && v.Name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (v.Contact && v.Contact.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (v.Notes && v.Notes.toLowerCase().includes(searchQuery.toLowerCase()));
+        return matchesCat && matchesSearch;
+      });
+
+      return (
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
+          {/* Header */}
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-white">Preferred Vendor Directory</h1>
+              <p className="text-slate-400 text-sm">Real-Time Google Sheets Integration</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={fetchVendors} 
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+              >
+                {loading ? "Syncing..." : "Sync Sheet"}
+              </button>
+              <a 
+                href={GOOGLE_SHEET_URL} 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-semibold border border-slate-600 transition"
+              >
+                Open Spreadsheet
+              </a>
+            </div>
+          </header>
+
+          {statusMessage && (
+            <div className="p-3 bg-slate-800 border border-slate-700 text-blue-400 rounded-lg text-sm">
+              {statusMessage}
+            </div>
+          )}
+
+          {/* Search & Category Filter */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <input 
+              type="text" 
+              placeholder="Search vendors..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 md:col-span-2"
+            />
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+            >
+              {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+            </select>
+          </div>
+
+          {/* Main Content Layout */}
+          <div className="grid lg:grid-cols-3 gap-6">
+            {/* Vendor Cards List */}
+            <div className="lg:col-span-2 space-y-4">
+              {filteredVendors.length === 0 ? (
+                <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 text-center text-slate-400">
+                  No vendors found.
+                </div>
+              ) : (
+                filteredVendors.map((vendor, idx) => (
+                  <div key={idx} className="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-xs px-2 py-1 rounded bg-blue-900/50 text-blue-300 font-semibold border border-blue-700/50">
+                          {vendor.Category || "General"}
+                        </span>
+                        <h3 className="text-lg font-bold text-white mt-1">{vendor.Name || "Unnamed Vendor"}</h3>
+                      </div>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 font-medium">
+                        {vendor.Status || "Preferred"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-sm text-slate-300">
+                      <div><strong className="text-slate-400">Contact:</strong> {vendor.Contact || "—"}</div>
+                      <div><strong className="text-slate-400">Phone:</strong> {vendor.Phone || "—"}</div>
+                      <div><strong className="text-slate-400">Email:</strong> {vendor.Email || "—"}</div>
+                      <div><strong className="text-slate-400">Website:</strong> {vendor.Website || "—"}</div>
+                    </div>
+
+                    {vendor.Notes && (
+                      <p className="text-xs bg-slate-900/60 p-2.5 rounded text-slate-400 italic border border-slate-800">
+                        "{vendor.Notes}"
+                      </p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Vendor Form */}
+            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit space-y-4">
+              <h2 className="text-lg font-bold text-white">Add New Vendor</h2>
+              <form onSubmit={handleAddVendor} className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Vendor Name</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Category</label>
+                  <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100">
+                    {CATEGORIES.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400">Contact Person</label>
+                    <input type="text" value={formData.contact} onChange={e => setFormData({...formData, contact: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400">Phone</label>
+                    <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Email</label>
+                  <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100" />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-400">Notes / Pitch</label>
+                  <textarea rows="3" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100"></textarea>
+                </div>
+                <button type="submit" disabled={loading} className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-sm transition">
+                  Save to Google Sheet
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
